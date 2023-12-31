@@ -89,11 +89,13 @@ int main(int argc, char** argv){
                 return 1;
             }
 
-            // Download Citra saves to local Checkpoint directory
-            std::string checkpointPath = reader.Get("Paths", "Checkpoint", "");
-            if (checkpointPath != "") {
-                downloadCitraSaves(dropboxToken, checkpointPath);
-                std::cout << "Finished downloading Citra saves!" << std::endl << std::endl;
+            ///////////////////////// My Code :)
+
+            // Download DeltaSync saves to local ROMs directory
+            std::string romSavesPath = reader.Get("Paths", "ROMSaves", "");
+            if (romSavesPath != "") {
+                downloadDeltaSyncSaves(dropboxToken, romSavesPath);
+                std::cout << "Finished downloading DeltaSync saves!" << std::endl << std::endl;
             }
 
             // Upload to Dropbox
@@ -107,6 +109,28 @@ int main(int argc, char** argv){
             }
             Dropbox dropbox(dropboxToken);
             if((int)paths.size() > 0) dropbox.upload(paths);
+
+
+            /////////////////////
+
+            // // Download Citra saves to local Checkpoint directory
+            // std::string checkpointPath = reader.Get("Paths", "Checkpoint", "");
+            // if (checkpointPath != "") {
+            //     downloadCitraSaves(dropboxToken, checkpointPath);
+            //     std::cout << "Finished downloading Citra saves!" << std::endl << std::endl;
+            // }
+
+            // // Upload to Dropbox
+            // std::map<std::string, std::string> values = reader.GetValues();
+            // std::map<std::pair<std::string, std::string>, std::vector<std::string>> paths;
+            // for(auto value : values){
+            //     if(value.first.rfind("paths=", 0) == 0){
+            //         std::pair<std::string, std::string> key = std::make_pair(value.second, value.first.substr(6));
+            //         paths[key] = recurse_dir(value.second);
+            //     }
+            // }
+            // Dropbox dropbox(dropboxToken);
+            // if((int)paths.size() > 0) dropbox.upload(paths);
         } else {
             printf("Can't load Dropbox token from 3DSync.ini\n");
         }

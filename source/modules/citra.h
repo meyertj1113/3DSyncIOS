@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include <sys/stat.h>
+#include <openssl/sha.h>
 
 #include "dropbox.h"
 
@@ -119,5 +120,101 @@ void downloadCitraSaves(std::string dropboxToken, std::string checkpointPath) {
             lr.name,
             lr.path_display
         );
+    }
+}
+
+// Chat-GPT code
+
+std::string calculateSHA1(const std::string &filepath) {
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) {
+        return "";
+    }
+
+    SHA_CTX shaContext;
+    SHA1_Init(&shaContext);
+
+    char buffer[BUFSIZ];
+    while (file.read(buffer, sizeof(buffer)).gcount() > 0) {
+        SHA1_Update(&shaContext, buffer, file.gcount());
+    }
+
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    SHA1_Final(hash, &shaContext);
+
+    std::string result;
+    for (int i = 0; i < SHA_DIGEST_LENGTH; ++i) {
+        result += (char)(hash[i]);
+    }
+
+    file.close();
+    return result;
+}
+
+std::map<std::string, std::string> findROMsAndHashes(const std::string& romsFolderPath) {
+    std::map<std::string, std::string> romsAndHashes;
+
+    DIR *dir;
+    struct dirent *ent;
+    if ((dir = opendir(romsFolderPath.c_str())) != NULL) {
+        while ((ent = readdir(dir)) != NULL) {
+            std::string filename = ent->d_name;
+            if (filename.length() >= 4 && filename.substr(filename.length() - 4) == ".nds") {
+                std::string filepath = romsFolderPath + "/" + filename;
+
+                std::string hash = calculateSHA1(filepath);
+                if (!hash.empty()) {
+                    romsAndHashes[filename] = hash;
+                } else {
+                    std::cout << "Failed to calculate hash for: " << filename << std::endl;
+                }
+            }
+        }
+        closedir(dir);
+    } else {
+        std::cout << "Could not open directory: " << romsFolderPath << std::endl;
+    }
+
+    return romsAndHashes;
+}
+
+void downloadDeltaSaves(std::string dropboxToken, std::string romsPath) {
+    auto pathmap = findROMSaves(romsPath);
+
+    Dropbox dropbox(dropboxToken);
+    auto folder = dropbox.list_folder("/Delta Emulator");
+    for (auto lr : folder) {
+        if (!lr.is_file) {
+            continue; // Skip directories
+        }
+
+        std::string filename = lr.name;
+        // Check if the file follows the expected naming convention
+        if (filename.substr(0, 9) != "GameSave-" || filename.substr(filename.length() - 9) != "-gameSave") {
+            //std::cout << lr.name << ": Invalid file name, skipping" << std::endl;
+            continue;
+        }
+
+        // Extract the SHA-1 hash from the filename
+        std::string hash = filename.substr(9, filename.length() - 18);
+
+        // Assuming the hash corresponds to a game in your ROMs path
+        auto it = pathmap.find(hash);
+        if (it == pathmap.end()) {
+            std::cout << lr.name << ": No corresponding ROM found, skipping" << std::endl;
+            continue;
+        }
+
+        std::string romName = it->second; // ROM name based on hash
+        std::string savePath = romsPath + "/" + romName + ".sav"; // Path to save in ROMs directory
+
+        // Download the save file to the ROMs directory
+        bool downloadSuccess = dropbox.download_file(lr.path_display, savePath);
+
+        if (downloadSuccess) {
+            std::cout << lr.name << ": Downloaded to " << savePath << std::endl;
+        } else {
+            std::cout << lr.name << ": Download failed" << std::endl;
+        }
     }
 }
